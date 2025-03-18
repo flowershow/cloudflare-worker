@@ -1,0 +1,22 @@
+{
+  "name": "markdown-parser-worker",
+  "version": "1.0.0",
+  "description": "Cloudflare worker for parsing markdown files and updating metadata",
+  "main": "src/worker.js",
+  "scripts": {
+    "dev": "wrangler dev --local",
+    "deploy": "wrangler deploy",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "wrangler": "^3.0.0"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.0.0",
+    "@prisma/client": "^5.0.0",
+    "gray-matter": "^4.0.0"
+  }
+}
