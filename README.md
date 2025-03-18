@@ -1,11 +1,12 @@
 # Markdown Parser Worker
 
-A Cloudflare worker that processes markdown files saved to S3, extracting metadata and updating the database. The worker receives HTTP requests from Inngest when files are saved.
+A Cloudflare worker that processes markdown files saved to S3, extracting metadata and updating the database. The worker exposes an HTTP endpoint that processes markdown files and updates metadata in the database.
 
 ## Features
 
 - Processes markdown (.md) and MDX (.mdx) files
-- Extracts metadata from frontmatter (currently title)
+- Extracts metadata from frontmatter (title and description)
+- Falls back to intelligent content parsing if frontmatter is missing
 - Updates Blob records in the database with extracted metadata
 - Works with AWS S3 storage and MinIO for local development
 
@@ -26,10 +27,10 @@ npm install
 
 3. Create a local environment file:
 ```bash
-cp .env.example .env
+cp .dev.vars.example .dev.vars
 ```
 
-4. Fill in your .env with the required values. For local development with MinIO:
+4. Fill in your .dev.vars with the required values. For local development with MinIO:
 ```
 # Database Configuration
 DATABASE_URL=postgresql://postgres@localhost:5432/datahub-next-dev?schema=public
@@ -43,11 +44,6 @@ S3_ENDPOINT=http://localhost:9000  # Must include protocol (http:// or https://)
 S3_FORCE_PATH_STYLE=true
 ```
 
-5. Generate Prisma client:
-```bash
-npx prisma generate
-```
-
 ## Local Development
 
 1. Ensure MinIO is running locally (default endpoint: http://localhost:9000)
@@ -58,23 +54,49 @@ npm run dev
 ```
 This will start the worker at http://localhost:8787
 
-3. Configure your Inngest function to send HTTP requests to http://localhost:8787 for local development.
+## API Usage
 
-4. Test the worker by sending a POST request:
+The worker exposes a single HTTP endpoint that accepts POST requests. Here's how to use it:
+
+### Request
+
 ```bash
 curl -X POST http://localhost:8787 \
   -H "Content-Type: application/json" \
-  -d '{"siteId": "your-site-id", "blobId": "your-blob-id", "path": "path/to/your/file.md"}'
+  -d '{"siteId": "your-site-id", "blobId": "your-blob-id", "path": "path/to/your/file.md", "branch": "main"}'
 ```
 
-The worker expects the following parameters in the request body:
+#### Parameters
+
 - `siteId`: The ID of the site the file belongs to
 - `blobId`: The ID of the blob record to update
-- `path`: The path to the markdown file in S3
+- `path`: The path to the markdown file in the site content folder (repository)
+- `branch`: The branch name (used to construct the S3 key path as `${siteId}/${branch}/raw/${path}`)
+
+### Response
+
+The endpoint returns a JSON response with the extracted metadata:
+
+```json
+{
+  "title": "Extracted title",
+  "description": "Extracted description..."
+}
+```
+
+### Error Responses
+
+- `400 Bad Request`: Missing required parameters (siteId, blobId, path, or branch)
+- `500 Internal Server Error`: Processing errors (S3 access, parsing, database updates)
 
 ## Production Deployment
 
-1. Configure environment variables in the Cloudflare dashboard:
+1. Deploy the worker:
+```bash
+npm run deploy
+```
+
+2. Configure environment variables for the worker in the Cloudflare dashboard:
    - S3_ACCESS_KEY_ID
    - S3_SECRET_ACCESS_KEY
    - S3_REGION (optional, defaults to us-east-1)
@@ -83,42 +105,25 @@ The worker expects the following parameters in the request body:
    - S3_ENDPOINT (must include protocol, e.g., https://your-bucket.r2.cloudflarestorage.com)
    - S3_FORCE_PATH_STYLE
 
-2. Deploy the worker:
-```bash
-npm run deploy
-```
-
-3. Update your Inngest function to use the Cloudflare Workers URL.
 
 ## Project Structure
 
 - `src/worker.js` - Main worker file that handles HTTP requests
 - `src/parser.js` - Markdown parsing and metadata extraction
-- `wrangler.toml` - Cloudflare Workers configuration
-- `.env.example` - Example environment variables
-- `prisma/schema.prisma` - Database schema
+- `wrangler.toml` - Cloudflare Workers configuration (with Node.js compatibility mode)
+- `.dev.vars.example` - Example environment variables
 
-## Extending Metadata Extraction
+## Metadata Extraction
 
-To extract additional metadata from markdown files, modify the `parseMarkdownFile` function in `src/parser.js`. Currently, it only extracts the title from frontmatter, but you can extend it to extract more fields as needed.
+The worker extracts the following metadata from markdown files:
 
-## Error Handling
+### Title
+1. Uses frontmatter `title` field if present
+2. Falls back to first H1 heading in the content
+3. If no title is found, uses the filename (without extension)
 
-The worker includes error handling for:
-- Missing or invalid request parameters
-- Invalid file types (non-markdown files)
-- S3/MinIO access issues
-- Invalid S3 endpoint configuration
-- Markdown parsing errors
-- Database update failures
-- Missing or invalid configuration
+### Description
+1. Uses frontmatter `description` field if present
+2. Falls back to extracting first 200 characters of content
 
-All errors are logged and appropriate HTTP responses are returned.
-
-## Contributing
-
-1. Fork the repository
-2. Create your feature branch
-3. Commit your changes
-4. Push to the branch
-5. Create a new Pull Request
+To extract additional metadata, modify the `parseMarkdownFile` function in `src/parser.js`.
