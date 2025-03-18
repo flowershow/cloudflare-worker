@@ -1,0 +1,10 @@
+# Database Configuration
+DATABASE_URL=postgresql://postgres@localhost:5432/datahub-next-dev?schema=public
+
+# S3 Configuration (using MinIO for local development)
+S3_ACCESS_KEY_ID=minioadmin
+S3_SECRET_ACCESS_KEY=minioadmin
+S3_REGION=us-east-1  # Optional, defaults to us-east-1 for MinIO
+S3_BUCKET=datahub
+S3_ENDPOINT=http://localhost:9000  # Must include protocol (http:// or https://)
+S3_FORCE_PATH_STYLE=true

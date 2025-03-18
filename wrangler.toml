@@ -1,6 +1,7 @@
 name = "markdown-parser-worker"
 main = "src/worker.js"
 compatibility_date = "2024-03-18"
+compatibility_flags = ["nodejs_compat"]
 
 [vars]
 # These will be loaded from .env file during local development
@@ -11,7 +12,6 @@ S3_BUCKET = ""
 DATABASE_URL = ""
 S3_ENDPOINT = ""
 S3_FORCE_PATH_STYLE = ""
-INNGEST_APP_ID = ""
 
 # Local development settings
 [dev]
