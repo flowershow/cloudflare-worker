@@ -2,79 +2,170 @@ import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
 import postgres from 'postgres';
 import { parseMarkdownFile } from './parser';
 
+// Initialize S3 client
+function getS3Client(env) {
+  const s3Config = {
+    endpoint: env.S3_ENDPOINT,
+    forcePathStyle: env.S3_FORCE_PATH_STYLE === 'true',
+    credentials: {
+      accessKeyId: env.S3_ACCESS_KEY_ID,
+      secretAccessKey: env.S3_SECRET_ACCESS_KEY,
+    },
+  };
+
+  if (env.S3_REGION && env.S3_REGION !== '') {
+    s3Config.region = env.S3_REGION;
+  } else {
+    s3Config.region = 'us-east-1'; // Default region for MinIO
+  }
+
+  return new S3Client(s3Config);
+}
+
+// Initialize postgres client
+function getPostgresClient(env) {
+  return postgres(env.DATABASE_URL, {
+    max: 5,
+    fetch_types: false,
+  });
+}
+
+async function getBlobId(sql, siteId, path, branch) {
+  const result = await sql`
+    SELECT id 
+    FROM "Blob"
+    WHERE "siteId" = ${siteId}
+    AND path = ${path}
+    AND branch = ${branch}
+    ORDER BY "createdAt" DESC
+    LIMIT 1
+  `;
+  
+  if (result.length === 0) {
+    throw new Error(`No blob found for path: ${path}`);
+  }
+  
+  return result[0].id;
+}
+
+async function processFile(env, siteId, branch, path) {
+  console.log('Processing request:', { siteId, branch, path });
+  
+  const s3Client = getS3Client(env);
+  const sql = getPostgresClient(env);
+
+  try {
+    // Check if file is markdown
+    if (!path.match(/\.(md|mdx)$/i)) {
+      console.log(`Skipping non-markdown file: ${path}`);
+      return;
+    }
+
+    // Get file content from S3
+    const s3Key = `${siteId}/${branch}/raw/${path}`;
+    console.log('Fetching from S3:', s3Key);
+    
+    const getObjectCommand = new GetObjectCommand({
+      Bucket: env.S3_BUCKET,
+      Key: s3Key
+    });
+
+    const response = await s3Client.send(getObjectCommand);
+    const content = await response.Body.transformToString();
+
+    console.log('Processing markdown file:', path);
+
+    // Get blobId from database
+    const blobId = await getBlobId(sql, siteId, path, branch);
+
+    // Parse the markdown content
+    const metadata = await parseMarkdownFile(content, path);
+
+    console.log('Parsed metadata:', metadata);
+
+    // Update blob metadata in database
+    await sql`
+      UPDATE "Blob"
+      SET metadata = ${sql.json(metadata)},
+          "updatedAt" = NOW()
+      WHERE id = ${blobId}
+    `;
+
+    console.log(`Successfully processed ${path}`);
+  } catch (error) {
+    console.error('Error processing file:', error);
+    throw error;
+  } finally {
+    await sql.end();
+  }
+}
+
 export default {
+  // Handle S3 events and queue them
   async fetch(request, env, ctx) {
     try {
-      // Initialize S3 client with support for MinIO
-      const s3Config = {
-        endpoint: env.S3_ENDPOINT,
-        forcePathStyle: env.S3_FORCE_PATH_STYLE === 'true',
-        credentials: {
-          accessKeyId: env.S3_ACCESS_KEY_ID,
-          secretAccessKey: env.S3_SECRET_ACCESS_KEY,
-        },
-      };
-
-      // Add region only if it's provided, otherwise let SDK use default
-      if (env.S3_REGION && env.S3_REGION !== '') {
-        s3Config.region = env.S3_REGION;
-      } else {
-        s3Config.region = 'us-east-1'; // Default region for MinIO
+      const { Records } = await request.json();
+      
+      // Validate S3 event
+      if (!Records || !Array.isArray(Records)) {
+        return new Response('Invalid S3 event format', { status: 400 });
       }
 
-      const s3Client = new S3Client(s3Config);
+      // Queue each file for processing
+      for (const record of Records) {
+        if (!record.s3?.object?.key) {
+          console.warn('Invalid record format:', record);
+          continue;
+        }
 
-      // Initialize postgres client with connection pooling limits
-      const sql = postgres(env.DATABASE_URL, {
-        max: 5, // Limit concurrent connections for Workers
-        fetch_types: false, // Disable type fetching since we don't use array types
-      });
+        const key = record.s3.object.key; // S3 events provide decoded keys
+        console.log('Processing S3 key:', key);
+        
+        // Extract components from the key
+        const matches = key.match(/^([^/]+)\/([^/]+)\/raw\/(.+)$/);
+        
+        if (!matches) {
+          console.warn(`Invalid file path format: ${key}`);
+          continue;
+        }
 
-      const { siteId, blobId, path, branch } = await request.json();
-
-      // Validate required parameters
-      if (!siteId || !blobId || !path || !branch) {
-        return new Response('Missing required parameters: siteId, blobId, path', { 
-          status: 400 
+        const [, siteId, branch, path] = matches;
+        console.log('Extracted components:', { siteId, branch, path });
+        
+        // Queue the file for processing
+        await env.FILE_PROCESSOR_QUEUE.send({
+          siteId,
+          branch,
+          path
         });
+        
+        console.log(`Queued for processing: ${key}`);
       }
 
-      // Check if file is markdown
-      if (!path.match(/\.(md|mdx)$/i)) {
-        console.log(`Skipping non-markdown file: ${path}`);
-        return new Response('Not a markdown file', { status: 200 });
-      }
-
-      // Get file content from S3
-      const getObjectCommand = new GetObjectCommand({
-        Bucket: env.S3_BUCKET,
-        Key: `${siteId}/${branch}/raw/${path}`
-      });
-
-      const response = await s3Client.send(getObjectCommand);
-      const content = await response.Body.transformToString();
-
-      console.log('Processing markdown file:', path);
-
-      // Parse the markdown content
-      const metadata = await parseMarkdownFile(content, path);
-
-      console.log('Parsed metadata:', metadata);
-
-      // Update blob metadata in database
-      await sql`
-        UPDATE "Blob"
-        SET metadata = ${sql.json(metadata)},
-            "updatedAt" = NOW()
-        WHERE id = ${blobId}
-      `;
-
-      console.log(`Successfully processed ${path}`);
-      return new Response('Successfully processed file', { status: 200 });
-
+      return new Response('Events queued for processing', { status: 200 });
     } catch (error) {
-      console.error('Error processing file:', error);
-      return new Response(`Error processing file: ${error}`, { status: 500 });
+      console.error('Error handling S3 event:', error);
+      return new Response(`Error handling S3 event: ${error}`, { status: 500 });
+    }
+  },
+
+  // Process queued events
+  async queue(batch, env, ctx) {
+    try {
+      for (const message of batch.messages) {
+        console.log('Processing queued message:', message.body);
+        const { siteId, branch, path } = message.body;
+        
+        if (!siteId || !branch || !path) {
+          console.error('Invalid message format:', message.body);
+          continue;
+        }
+        
+        await processFile(env, siteId, branch, path);
+      }
+    } catch (error) {
+      console.error('Error processing queued message:', error);
+      throw error; // Retry the batch
     }
   }
 };

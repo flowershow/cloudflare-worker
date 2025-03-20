@@ -1,13 +1,15 @@
 # Markdown Parser Worker
 
-A Cloudflare worker that processes markdown files saved to S3, extracting metadata and updating the database. The worker exposes an HTTP endpoint that processes markdown files and updates metadata in the database.
+A Cloudflare worker that automatically processes markdown files when they are uploaded to S3. The worker uses Cloudflare Queues to reliably process files and update metadata in the database.
 
 ## Features
 
+- Automatically triggered by S3 file uploads
 - Processes markdown (.md) and MDX (.mdx) files
 - Extracts metadata from frontmatter (title and description)
 - Falls back to intelligent content parsing if frontmatter is missing
 - Updates Blob records in the database with extracted metadata
+- Uses queues for reliable processing with retries
 - Works with AWS S3 storage and MinIO for local development
 
 ## Prerequisites
@@ -16,6 +18,7 @@ A Cloudflare worker that processes markdown files saved to S3, extracting metada
 - MinIO running locally (for development)
 - PostgreSQL database
 - Cloudflare account (for production deployment)
+- MinIO Client (mc) installed
 
 ## Installation
 
@@ -44,59 +47,134 @@ S3_ENDPOINT=http://localhost:9000  # Must include protocol (http:// or https://)
 S3_FORCE_PATH_STYLE=true
 ```
 
-## Local Development
+## Local Development and Testing
 
-1. Ensure MinIO is running locally (default endpoint: http://localhost:9000)
+1. Create the development queue:
+```bash
+npx wrangler queues create markdown-file-processor-queue-dev
+```
 
-2. Start the worker locally:
+2. Start the worker in development mode:
 ```bash
 npm run dev
 ```
 This will start the worker at http://localhost:8787
 
-## API Usage
+### Setting up MinIO Client
 
-The worker exposes a single HTTP endpoint that accepts POST requests. Here's how to use it:
-
-### Request
-
+1. Configure MinIO client alias (only need to do this once):
 ```bash
-curl -X POST http://localhost:8787 \
-  -H "Content-Type: application/json" \
-  -d '{"siteId": "your-site-id", "blobId": "your-blob-id", "path": "path/to/your/file.md", "branch": "main"}'
+mc alias set local http://localhost:9000 minioadmin minioadmin
 ```
 
-#### Parameters
-
-- `siteId`: The ID of the site the file belongs to
-- `blobId`: The ID of the blob record to update
-- `path`: The path to the markdown file in the site content folder (repository)
-- `branch`: The branch name (used to construct the S3 key path as `${siteId}/${branch}/raw/${path}`)
-
-### Response
-
-The endpoint returns a JSON response with the extracted metadata:
-
-```json
-{
-  "title": "Extracted title",
-  "description": "Extracted description..."
-}
+2. Create the test bucket if it doesn't exist:
+```bash
+mc mb local/datahub
 ```
 
-### Error Responses
+3. Test the connection:
+```bash
+mc ls local/datahub
+```
 
-- `400 Bad Request`: Missing required parameters (siteId, blobId, path, or branch)
-- `500 Internal Server Error`: Processing errors (S3 access, parsing, database updates)
+Important: When using MinIO client (mc), always use the configured alias (e.g., 'local') to interact with the MinIO server:
+- ❌ `mc cp test.md minio/datahub/...` - Wrong: copies to local directory
+- ✅ `mc cp test.md local/datahub/...` - Correct: uploads to MinIO server
+
+### Setting up MinIO Event Notifications
+
+1. Access the MinIO Console (usually at http://localhost:9001)
+
+2. Log in with your credentials (default: minioadmin/minioadmin)
+
+3. Configure Event Notifications:
+   - Go to Buckets → datahub → Events
+   - Click "Add Event Destination"
+   - Select "Webhook" as the destination type
+   - Set the Webhook URL to your local worker: http://localhost:8787
+   - Configure Event Types:
+     - Select "put" event (for object creation)
+     - Optionally add "delete" if you need to handle file deletions
+   - Set Prefix and Suffix filters:
+     - Prefix: Leave empty to catch all uploads
+     - Suffix: .md,.mdx (to only trigger on markdown files)
+   - Save the configuration
+
+### Testing with MinIO
+
+You can test the worker by uploading and deleting files:
+
+1. Upload a test file:
+```bash
+# Upload a markdown file
+mc cp test/test.md local/datahub/test-site/main/raw/test.md
+```
+
+2. Delete a test file:
+```bash
+# Delete a markdown file
+mc rm local/datahub/test-site/main/raw/test.md
+```
+
+The worker will:
+1. Receive the MinIO event
+2. Queue the file for processing
+3. Process the queued event
+4. Update the blob metadata in the database
+
+You can monitor the worker logs in the development terminal to track processing status and any errors.
+
+Note: Ensure your database has a blob record for the test file path before testing.
+
+## File Processing
+
+The worker processes files uploaded to S3 at the following path pattern:
+```
+/{siteId}/{branch}/raw/{pathtofile}
+```
+
+For example:
+```
+/my-site/main/raw/blog/welcome.md
+```
+
+When a file is uploaded:
+1. The worker receives an S3 event notification
+2. The event is queued for processing
+3. The worker processes the queued event:
+   - Extracts file metadata
+   - Updates the corresponding blob record in the database
+4. If processing fails, the event is automatically retried
+
+## Queue Management
+
+The worker uses separate queues for development and production:
+
+- Development: `markdown-file-processor-queue-dev`
+  - Used when running `npm run dev`
+  - Isolated from production events
+  - Good for testing without affecting production data
+
+- Production: `markdown-file-processor-queue`
+  - Used when deployed to Cloudflare
+  - Handles real S3 events
+  - Configured with appropriate retry policies
+
+This separation ensures that development testing doesn't interfere with production processing.
 
 ## Production Deployment
 
-1. Deploy the worker:
+1. Create the production queue:
+```bash
+npx wrangler queues create markdown-file-processor-queue
+```
+
+2. Deploy the worker:
 ```bash
 npm run deploy
 ```
 
-2. Configure environment variables for the worker in the Cloudflare dashboard:
+3. Configure environment variables for the worker in the Cloudflare dashboard:
    - S3_ACCESS_KEY_ID
    - S3_SECRET_ACCESS_KEY
    - S3_REGION (optional, defaults to us-east-1)
@@ -105,12 +183,14 @@ npm run deploy
    - S3_ENDPOINT (must include protocol, e.g., https://your-bucket.r2.cloudflarestorage.com)
    - S3_FORCE_PATH_STYLE
 
+4. Configure your S3 bucket to send event notifications to the worker's endpoint.
 
 ## Project Structure
 
-- `src/worker.js` - Main worker file that handles HTTP requests
+- `src/worker.js` - Main worker file that handles S3 events and queue processing
 - `src/parser.js` - Markdown parsing and metadata extraction
-- `wrangler.toml` - Cloudflare Workers configuration (with Node.js compatibility mode)
+- `test/test.md` - Sample markdown file for testing
+- `wrangler.toml` - Cloudflare Workers configuration
 - `.dev.vars.example` - Example environment variables
 
 ## Metadata Extraction
