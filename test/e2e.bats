@@ -43,10 +43,26 @@ teardown() {
     npm run dev &
     sleep 5  # Wait for worker to start
     
+    # Create test content
+    cat > test_content.md << 'EOF'
+---
+title: Test Article
+description: A test markdown file for local development
+date: 2024-03-20
+---
+
+# Test Article
+
+This is a test markdown file used to verify the S3 event trigger and queue processing functionality.
+EOF
+
     # Upload test file to MinIO
     mc cp \
-        test/test.md \
+        test_content.md \
         local/datahub/$SITE_ID/$BRANCH/raw/$PATH_IN_REPO
+    
+    # Clean up temporary file
+    rm test_content.md
     
     # Wait longer for processing
     sleep 10
