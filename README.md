@@ -49,6 +49,40 @@ S3_FORCE_PATH_STYLE=true
 
 ## Local Development and Testing
 
+### Running E2E Tests
+
+The project includes end-to-end tests that verify the complete flow from file upload to database updates. To run the tests:
+
+1. Install BATS (Bash Automated Testing System):
+```bash
+# On macOS
+brew install bats-core
+
+# On Ubuntu/Debian
+sudo apt-get install bats
+```
+
+2. Ensure MinIO and PostgreSQL are running locally
+
+3. Run the tests:
+```bash
+npm test
+```
+
+The tests will:
+1. Set up test data:
+   - Create a test site in the database
+   - Create a blob record for the test file
+2. Upload test/test.md to MinIO
+3. Start the worker locally
+4. Verify that the file is processed and metadata is correctly updated:
+   - Title from frontmatter
+   - Description from frontmatter
+   - Additional metadata like date
+5. Clean up test data when done
+
+### Development Setup
+
 1. Create the development queue:
 ```bash
 npx wrangler queues create markdown-file-processor-queue-dev
@@ -83,22 +117,30 @@ Important: When using MinIO client (mc), always use the configured alias (e.g., 
 
 ### Setting up MinIO Event Notifications
 
-1. Access the MinIO Console (usually at http://localhost:9001)
+1. Start the worker in development mode (if not already running):
+```bash
+npm run dev
+```
 
-2. Log in with your credentials (default: minioadmin/minioadmin)
+2. Configure webhook event notifications using the MinIO Client (mc):
+```bash
+# Add webhook configuration for markdown file events
+mc admin config set local notify_webhook:worker endpoint=http://localhost:8787
 
-3. Configure Event Notifications:
-   - Go to Buckets → datahub → Events
-   - Click "Add Event Destination"
-   - Select "Webhook" as the destination type
-   - Set the Webhook URL to your local worker: http://localhost:8787
-   - Configure Event Types:
-     - Select "put" event (for object creation)
-     - Optionally add "delete" if you need to handle file deletions
-   - Set Prefix and Suffix filters:
-     - Prefix: Leave empty to catch all uploads
-     - Suffix: .md,.mdx (to only trigger on markdown files)
-   - Save the configuration
+# Restart MinIO to apply the webhook configuration
+mc admin service restart local
+
+# Wait a few seconds for MinIO to restart, then add event configuration
+mc event add local/datahub arn:minio:sqs::worker:webhook --event put,delete --suffix .md,.mdx
+```
+
+This will:
+- Configure a webhook endpoint at http://localhost:8787 (your local worker)
+- Set up notifications for put (creation) and delete events
+- Only trigger on files ending in .md or .mdx
+- Send events to the worker for processing
+
+Note: The worker must be running at http://localhost:8787 before setting up the webhook configuration, and MinIO must be restarted to apply the webhook changes.
 
 ### Testing with MinIO
 

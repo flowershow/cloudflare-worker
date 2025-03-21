@@ -30,13 +30,12 @@ function getPostgresClient(env) {
   });
 }
 
-async function getBlobId(sql, siteId, path, branch) {
+async function getBlobId(sql, siteId, path) {
   const result = await sql`
-    SELECT id 
+    SELECT id
     FROM "Blob"
     WHERE "siteId" = ${siteId}
     AND path = ${path}
-    AND branch = ${branch}
     ORDER BY "createdAt" DESC
     LIMIT 1
   `;
@@ -76,7 +75,7 @@ async function processFile(env, siteId, branch, path) {
     console.log('Processing markdown file:', path);
 
     // Get blobId from database
-    const blobId = await getBlobId(sql, siteId, path, branch);
+    const blobId = await getBlobId(sql, siteId, path);
 
     // Parse the markdown content
     const metadata = await parseMarkdownFile(content, path);
@@ -118,7 +117,7 @@ export default {
           continue;
         }
 
-        const key = record.s3.object.key; // S3 events provide decoded keys
+        const key = decodeURIComponent(record.s3.object.key);
         console.log('Processing S3 key:', key);
         
         // Extract components from the key
