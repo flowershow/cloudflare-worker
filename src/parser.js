@@ -20,6 +20,7 @@ globalThis.Buffer = globalThis.Buffer || {
 export async function parseMarkdownFile(content, path = '') {
   try {
     const { data: frontMatter } = matter(content, {});
+    console.log('Parsed frontmatter:', frontMatter);
 
     const title =
       frontMatter.title ||

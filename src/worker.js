@@ -117,7 +117,9 @@ export default {
           continue;
         }
 
-        const key = decodeURIComponent(record.s3.object.key);
+        console.log("Raw key:", record.s3.object.key)
+        // First convert + to spaces, then decode URI (which converts %2B to +)
+        const key = decodeURIComponent(record.s3.object.key.replace(/\+/g, ' '));
         console.log('Processing S3 key:', key);
         
         // Extract components from the key

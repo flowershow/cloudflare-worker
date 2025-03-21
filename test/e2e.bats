@@ -10,7 +10,7 @@ setup() {
     # Test parameters
     export SITE_ID="test-site-123"
     export BRANCH="main"
-    export PATH_IN_REPO="articles/test.md"
+    export PATH_IN_REPO="articles/Test Article.md"
     export BLOB_ID="test-blob-123"
     
     # Ensure worker is not running
@@ -26,7 +26,7 @@ setup() {
     # Create blob for test file
     psql postgresql://postgres:postgres@localhost:5432/datahub-next-dev -c \
         "INSERT INTO \"Blob\" (id, \"siteId\", path, \"appPath\", size, sha, metadata, \"createdAt\", \"updatedAt\") 
-         VALUES ('$BLOB_ID', '$SITE_ID', '$PATH_IN_REPO', 'articles/test', 100, 'test-sha', '{}'::jsonb, NOW(), NOW())
+         VALUES ('$BLOB_ID', '$SITE_ID', '$PATH_IN_REPO', 'articles/Test Article', 100, 'test-sha', '{}'::jsonb, NOW(), NOW())
          ON CONFLICT (\"siteId\", path) DO NOTHING;"
 }
 
@@ -34,8 +34,8 @@ teardown() {
     pkill -f "wrangler dev" || true
 
     # Clean up test data
-    # psql postgresql://postgres:postgres@localhost:5432/datahub-next-dev -c \
-    #    "DELETE FROM \"Site\" WHERE id = '$SITE_ID';"
+    psql postgresql://postgres:postgres@localhost:5432/datahub-next-dev -c \
+       "DELETE FROM \"Site\" WHERE id = '$SITE_ID';"
 }
 
 create_test_content() {
@@ -64,15 +64,13 @@ EOF
     create_test_content "Test Article" "A test markdown file for local development" "2024-03-20"
 
     # Upload test file to MinIO
-    mc cp \
-        test_content.md \
-        local/datahub/$SITE_ID/$BRANCH/raw/$PATH_IN_REPO
+    mc cp test_content.md "local/datahub/$SITE_ID/$BRANCH/raw/$PATH_IN_REPO"
     
     # Clean up temporary file
     rm test_content.md
     
     # Wait longer for processing
-    sleep 10
+    sleep 3
     
     # Debug: Show current metadata
     echo "Current blob metadata:"
@@ -104,17 +102,15 @@ EOF
 @test "Updates metadata when file is updated in S3" {
     # Start worker in background
     npm run dev &
-    sleep 5  # Wait for worker to start
+    sleep 3  # Wait for worker to start
     
     # Upload initial file
     create_test_content "Initial Article" "First version" "2024-03-20"
-    mc cp \
-        test_content.md \
-        local/datahub/$SITE_ID/$BRANCH/raw/$PATH_IN_REPO
+    mc cp test_content.md "local/datahub/$SITE_ID/$BRANCH/raw/$PATH_IN_REPO"
     rm test_content.md
     
     # Wait for initial processing
-    sleep 10
+    sleep 3
     
     # Verify initial metadata
     result=$(psql postgresql://postgres:postgres@localhost:5432/datahub-next-dev -t -c \
@@ -131,13 +127,11 @@ EOF
     
     # Upload updated file
     create_test_content "Updated Article" "Second version" "2024-03-21"
-    mc cp \
-        test_content.md \
-        local/datahub/$SITE_ID/$BRANCH/raw/$PATH_IN_REPO
+    mc cp test_content.md "local/datahub/$SITE_ID/$BRANCH/raw/$PATH_IN_REPO"
     rm test_content.md
     
     # Wait for update processing
-    sleep 10
+    sleep 3
     
     # Verify updated metadata
     result=$(psql postgresql://postgres:postgres@localhost:5432/datahub-next-dev -t -c \
