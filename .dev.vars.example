@@ -8,3 +8,9 @@ S3_REGION=us-east-1  # Optional, defaults to us-east-1 for MinIO
 S3_BUCKET=datahub
 S3_ENDPOINT=http://localhost:9000  # Must include protocol (http:// or https://)
 S3_FORCE_PATH_STYLE=true
+
+# Typesense Configuration
+TYPESENSE_HOST=localhost
+TYPESENSE_PORT=8108
+TYPESENSE_PROTOCOL=http
+TYPESENSE_API_KEY=xyz  # Replace with your actual API key

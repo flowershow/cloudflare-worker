@@ -1,6 +1,7 @@
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
 import postgres from 'postgres';
 import { parseMarkdownFile } from './parser';
+import { Client } from 'typesense';
 
 // Initialize S3 client
 function getS3Client(env) {
@@ -20,6 +21,21 @@ function getS3Client(env) {
   }
 
   return new S3Client(s3Config);
+}
+
+// Initialize Typesense client
+function getTypesenseClient(env) {
+  return new Client({
+    nodes: [
+      {
+        host: env.TYPESENSE_HOST,
+        port: parseInt(env.TYPESENSE_PORT),
+        protocol: env.TYPESENSE_PROTOCOL,
+      },
+    ],
+    apiKey: env.TYPESENSE_API_KEY,
+    connectionTimeoutSeconds: 2,
+  });
 }
 
 // Initialize postgres client
@@ -47,11 +63,33 @@ async function getBlobId(sql, siteId, path) {
   return result[0].id;
 }
 
+async function indexInTypesense({typesense, siteId, blobId, path, content, metadata}) {
+  try {
+    // Create document for indexing
+    const document = {
+      title: metadata.title,
+      content: content,
+      path,
+      description: metadata.description,
+      authors: metadata.authors,
+      date: metadata.date ? new Date(metadata.date).getTime() / 1000 : null,
+      id: `${blobId}`, // Unique ID for the document
+    };
+
+    // Index the document
+    await typesense.collections(siteId).documents().upsert(document);
+    console.log(`Successfully indexed document: ${`${siteId} - ${path}`}`);
+  } catch {
+    console.error(`Failed indexing document: ${`${siteId} - ${path}`}`)
+  }
+}
+
 async function processFile(env, siteId, branch, path) {
   console.log('Processing request:', { siteId, branch, path });
   
   const s3Client = getS3Client(env);
   const sql = getPostgresClient(env);
+  const typesense = getTypesenseClient(env);
 
   try {
     // Check if file is markdown
@@ -89,6 +127,9 @@ async function processFile(env, siteId, branch, path) {
           "updatedAt" = NOW()
       WHERE id = ${blobId}
     `;
+
+    // Index in Typesense
+    await indexInTypesense({typesense, siteId, blobId, path, content, metadata});
 
     console.log(`Successfully processed ${path}`);
   } catch (error) {
