@@ -1,5 +1,9 @@
 # Database Configuration (required for all environments)
 DATABASE_URL=postgresql://postgres@localhost:5432/datahub-next-dev
+TYPESENSE_HOST=localhost
+TYPESENSE_PORT=8108
+TYPESENSE_PROTOCOL=http
+TYPESENSE_API_KEY=xyz
 
 # S3 Configuration (only needed for local development with MinIO)
 # These can be removed in production/staging as we use R2 bindings there

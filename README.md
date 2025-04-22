@@ -13,6 +13,7 @@ A Cloudflare worker that processes markdown files when they are uploaded to stor
 - Supports MinIO for local development
 - Built-in observability with sampling for monitoring
 - Supports production, staging, and development environments
+- Indexes content in Typesense for full-text search capabilities
 
 ## Local Development and Testing
 
@@ -96,9 +97,17 @@ This will:
 
 > Note: The worker must be running at http://localhost:8787 before setting up the webhook configuration, and MinIO must be restarted to apply the webhook changes.
 
+### Setting up Typesense
+
+For local development, you can install Typesense locally.
+
+For installation instructions, see the [Typesense Installation Guide](https://typesense.org/docs/guide/install-typesense.html)
+
+> Note: Before running the worker, ensure that the Typesense collection exists. The worker will attempt to index documents into this collection, so it must be created beforehand with the appropriate schema. If the collection doesn't exist, document indexing will fail.
+
 ### Testing with MinIO
 
-You can test the worker by uploading.
+You can test the worker by uploading files.
 
 Make sure the worker is running and upload the test file:
 ```bash
@@ -168,6 +177,7 @@ The processing flow differs between environments:
 2. The worker processes the queued events:
    - Extracts file metadata
    - Updates the corresponding blob record in the database
+   - Indexes the content in Typesense for search
 3. If processing fails, the event is automatically retried
 
 ### Development (MinIO)
@@ -176,6 +186,7 @@ The processing flow differs between environments:
 3. The worker processes the queued events:
    - Extracts file metadata
    - Updates the corresponding blob record in the database
+   - Indexes the content in Typesense for search
 4. If processing fails, the event is automatically retried
 
 ## Queue Management
@@ -215,8 +226,12 @@ npm run deploy
 
 3. Configure environment variables in Cloudflare dashboard (worker settings):
    - DATABASE_URL
+   - TYPESENSE_HOST
+   - TYPESENSE_PORT
+   - TYPESENSE_PROTOCOL
+   - TYPESENSE_API_KEY
 
-4. The worker will automatically process events from the R2 bucket.
+4. The worker will automatically process events from the R2 bucket and index content in Typesense.
 
 ## Project Structure
 

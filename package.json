@@ -21,6 +21,7 @@
     "gray-matter": "^4.0.3",
     "postgres": "^3.4.4",
     "remark": "^15.0.1",
-    "strip-markdown": "^6.0.0"
+    "strip-markdown": "^6.0.0",
+    "typesense": "^2.0.3"
   }
 }

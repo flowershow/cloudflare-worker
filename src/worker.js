@@ -1,5 +1,6 @@
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
 import postgres from 'postgres';
+import { Client } from 'typesense';
 import { parseMarkdownFile } from './parser';
 
 // --- CONFIGURATION & VALIDATION ---
@@ -14,7 +15,6 @@ function validateEnv(env) {
 
 // --- CLIENT INITIALIZATION ---
 function getStorageClient(env) {
-  validateEnv(env);
   if (env.ENVIRONMENT === 'dev') {
     const s3Client = new S3Client({
       endpoint: env.S3_ENDPOINT,
@@ -39,7 +39,21 @@ function getPostgresClient(env) {
   });
 }
 
-// --- DATABASE HELPERS ---
+function getTypesenseClient(env) {
+  return new Client({
+    nodes: [
+      {
+        host: env.TYPESENSE_HOST,
+        port: parseInt(env.TYPESENSE_PORT),
+        protocol: env.TYPESENSE_PROTOCOL,
+      },
+    ],
+    apiKey: env.TYPESENSE_API_KEY,
+    connectionTimeoutSeconds: 2,
+  });
+}
+
+// --- HELPERS ---
 async function getBlobId(sql, siteId, path) {
   const rows = await sql`
     SELECT id FROM \"Blob\"
@@ -52,8 +66,28 @@ async function getBlobId(sql, siteId, path) {
   return rows[0].id;
 }
 
-// --- FILE PROCESSING ---
-async function processFile({ storage, sql, siteId, branch, path }) {
+async function indexInTypesense({typesense, siteId, blobId, path, content, metadata}) {
+  try {
+    // Create document for indexing
+    const document = {
+      title: metadata.title,
+      content: content,
+      path,
+      description: metadata.description,
+      authors: metadata.authors,
+      date: metadata.date ? new Date(metadata.date).getTime() / 1000 : null,
+      id: `${blobId}`, // Unique ID for the document
+    };
+
+    // Index the document
+    await typesense.collections(siteId).documents().upsert(document);
+    console.log(`Successfully indexed document: ${`${siteId} - ${path}`}`);
+  } catch {
+    console.error(`Failed indexing document: ${`${siteId} - ${path}`}`)
+  }
+}
+
+async function processFile({ storage, sql, typesense, siteId, branch, path }) {
   console.log('Getting blob ID for:', { siteId, path });
   const blobId = await getBlobId(sql, siteId, path);
   console.log('Found blob ID:', blobId);
@@ -97,6 +131,7 @@ async function processFile({ storage, sql, siteId, branch, path }) {
           \"syncError\"  = NULL
       WHERE id = ${blobId};
     `;
+    await indexInTypesense({typesense, siteId, blobId, path, content, metadata});
     console.log('Successfully updated blob metadata');
   } catch (e) {
     console.error('Error in processFile:', {
@@ -119,7 +154,7 @@ async function processFile({ storage, sql, siteId, branch, path }) {
 }
 
 // --- MESSAGE HANDLER ---
-async function handleMessage(msg, storage, sql) {
+async function handleMessage({ msg, storage, sql, typesense }) {
   try {
     console.log('Processing message:', JSON.stringify(msg.body, null, 2));
     
@@ -140,7 +175,7 @@ async function handleMessage(msg, storage, sql) {
     }
 
     console.log('Processing file:', { siteId, branch, path });
-    await processFile({ storage, sql, siteId, branch, path });
+    await processFile({ storage, sql, typesense, siteId, branch, path });
     console.log('Successfully processed file');
     msg.ack();
   } catch (err) {
@@ -190,8 +225,9 @@ export default {
     validateEnv(env);
     const storage = getStorageClient(env);
     const sql = getPostgresClient(env);
+    const typesense = getTypesenseClient(env);
 
     // Process all messages in parallel
-    await Promise.all(batch.messages.map(msg => handleMessage(msg, storage, sql)));
+    await Promise.all(batch.messages.map(msg => handleMessage({ msg, storage, sql, typesense })));
   },
 };
