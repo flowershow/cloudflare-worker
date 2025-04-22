@@ -131,6 +131,7 @@ async function processFile({ storage, sql, typesense, siteId, branch, path }) {
           \"syncError\"  = NULL
       WHERE id = ${blobId};
     `;
+    console.log("Indexing in Typesense")
     await indexInTypesense({typesense, siteId, blobId, path, content, metadata});
     console.log('Successfully updated blob metadata');
   } catch (e) {
