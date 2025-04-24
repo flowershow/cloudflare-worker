@@ -1,6 +1,4 @@
 import matter from "gray-matter";
-import { remark } from "remark";
-import stripMarkdown from "strip-markdown";
 
 // Polyfill Buffer for browser environment
 const textEncoder = new TextEncoder();
@@ -31,10 +29,7 @@ export async function parseMarkdownFile(content, path = '') {
         ?.replace(/\.(mdx|md)$/, "") ||
       "";
 
-    const description =
-      frontMatter.description ||
-      (await extractDescription(content)) ||
-      "";
+    const description = frontMatter.description || "";
 
     return {
       ...frontMatter,
@@ -56,33 +51,6 @@ const extractTitle = async (source) => {
       .replace(/[_*~`>]/g, "") // remove markdown characters
       .replace(/\[(.*?)\]\(.*?\)/g, "$1"); // remove links but keep the text
     return title.trim();
-  }
-  return null;
-};
-
-const extractDescription = async (source) => {
-  const content = source
-    // remove frontmatter
-    .replace(/---[\s\S]*---/g, "")
-    // remove commented lines
-    .replace(/{\/\*.*\*\/}/g, "")
-    // remove youtube links
-    .replace(/^(https?:\/\/)?(www\.)?(youtube\.com|youtu\.?be)\/.+$/gm, "")
-    // replace wikilinks with only text
-    .replace(/([^!])\[\[(\S*?)\]]/g, "$1$2")
-    // remove wikilink images
-    .replace(/!\[[\S]*?]]/g, "");
-
-  // remove markdown formatting
-  const stripped = await remark()
-    .use(stripMarkdown, {
-      remove: ["heading", "blockquote", "list", "image", "html", "code"],
-    })
-    .process(content);
-
-  if (stripped.value) {
-    const description = stripped.value.toString().slice(0, 200);
-    return description + "...";
   }
   return null;
 };
