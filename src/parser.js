@@ -29,7 +29,7 @@ export async function parseMarkdownFile(content, path = '') {
         ?.replace(/\.(mdx|md)$/, "") ||
       "";
 
-    const description = frontMatter.description || "";
+    const description = frontMatter.description ?? null;
 
     return {
       ...frontMatter,
