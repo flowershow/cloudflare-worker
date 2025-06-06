@@ -66,12 +66,12 @@ async function getBlobId(sql, siteId, path) {
   return rows[0].id;
 }
 
-async function indexInTypesense({typesense, siteId, blobId, path, content, metadata}) {
+async function indexInTypesense({typesense, siteId, blobId, path, body, metadata}) {
   try {
     // Create document for indexing
     const document = {
       title: metadata.title,
-      content: content,
+      content: body,
       path,
       description: metadata.description,
       authors: metadata.authors,
@@ -119,7 +119,7 @@ async function processFile({ storage, sql, typesense, siteId, branch, path }) {
 
     // 3) Parse markdown
     console.log('Parsing markdown file');
-    const metadata = await parseMarkdownFile(content, path);
+    const { metadata, body } = await parseMarkdownFile(content, path);
     console.log('Successfully parsed markdown');
 
     // 4) Update DB metadata
@@ -132,7 +132,7 @@ async function processFile({ storage, sql, typesense, siteId, branch, path }) {
       WHERE id = ${blobId};
     `;
     console.log("Indexing in Typesense")
-    await indexInTypesense({typesense, siteId, blobId, path, content, metadata});
+    await indexInTypesense({typesense, siteId, blobId, path, body, metadata});
     console.log('Successfully updated blob metadata');
   } catch (e) {
     console.error('Error in processFile:', {

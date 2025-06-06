@@ -17,25 +17,25 @@ globalThis.Buffer = globalThis.Buffer || {
 
 export async function parseMarkdownFile(content, path = '') {
   try {
-    const { data: frontMatter } = matter(content, {});
-    console.log('Parsed frontmatter:', frontMatter);
+    const { data: frontmatter, content: body } = matter(content, {});
+    console.log('Parsed frontmatter:', frontmatter);
 
     const title =
-      frontMatter.title ||
-      (await extractTitle(content)) ||
+      frontmatter.title ||
+      (await extractTitle(body)) ||
       path
         .split("/")
         .pop()
         ?.replace(/\.(mdx|md)$/, "") ||
       "";
 
-    const description = frontMatter.description ?? null;
-
     return {
-      ...frontMatter,
-      title,
-      description
-    };
+      metadata: {
+        ...frontmatter,
+        title
+      },
+      body
+    }
   } catch (error) {
     throw new Error(`Error parsing markdown: ${error}`);
   }
