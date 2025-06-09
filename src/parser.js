@@ -41,8 +41,8 @@ export async function parseMarkdownFile(markdown, path = "") {
 	}
 }
 
-const extractTitle = async (source) => {
-	const heading = source.trim().match(/^(?:#\s+(.*))/m);
+export const extractTitle = async (source) => {
+	const heading = source.trim().match(/^#{1}[ ]+(.*)/);
 	if (heading?.[1]) {
 		const title = heading[1]
 			// replace wikilink with only text value

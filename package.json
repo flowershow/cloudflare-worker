@@ -18,6 +18,7 @@
 		"@biomejs/biome": "1.9.4",
 		"wrangler": "^4.1.0"
 	},
+  "type": "module",
 	"dependencies": {
 		"@aws-sdk/client-s3": "^3.0.0",
 		"gray-matter": "^4.0.3",
