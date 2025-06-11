@@ -1,4 +1,4 @@
-import { GetObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { GetObjectCommand, DeleteObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import postgres from "postgres";
 import { Client } from "typesense";
 import { parseMarkdownFile } from "./parser";
@@ -128,7 +128,46 @@ async function processFile({ storage, sql, typesense, siteId, branch, path }) {
 		const { metadata, body } = await parseMarkdownFile(markdown, path);
 		console.log("Successfully parsed markdown");
 
-		// 4) Update DB metadata
+		// Check if publish is false in frontmatter
+		if (metadata.publish === false) {
+			console.log("File has publish: false, removing from storage, database, and skipping indexing");
+			
+			// Remove from storage (R2/S3)
+			try {
+				if (storage.type === "s3") {
+					await storage.client.send(
+						new DeleteObjectCommand({ Bucket: storage.bucket, Key: key })
+					);
+					console.log("Successfully deleted from S3:", key);
+				} else {
+					await storage.client.delete(key);
+					console.log("Successfully deleted from R2:", key);
+				}
+			} catch (deleteError) {
+				console.error("Error deleting from storage:", deleteError.message);
+				// Continue with database deletion even if storage deletion fails
+			}
+
+			// Remove from database
+			await sql`
+				DELETE FROM \"Blob\"
+				WHERE id = ${blobId};
+			`;
+			console.log("Successfully deleted blob from database:", blobId);
+
+			// Remove from Typesense index if it exists
+			try {
+				await typesense.collections(siteId).documents(`${blobId}`).delete();
+				console.log("Successfully deleted from Typesense index:", blobId);
+			} catch (typesenseError) {
+				// Document might not exist in index, which is fine
+				console.log("Document not found in Typesense index (or other error):", typesenseError.message);
+			}
+
+			return; // Exit early, don't process further
+		}
+
+		// 4) Update DB metadata (only if publish is not false)
 		console.log("Updating blob metadata:", { blobId });
 		await sql`
       UPDATE \"Blob\"
