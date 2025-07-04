@@ -56,9 +56,9 @@ function getTypesenseClient(env) {
 async function getBlobId(sql, siteId, path) {
 	const rows = await sql`
     SELECT id FROM \"Blob\"
-    WHERE \"siteId\" = ${siteId}
+    WHERE \"site_id\" = ${siteId}
       AND path     = ${path}
-    ORDER BY \"createdAt\" DESC
+    ORDER BY \"created_at\" DESC
     LIMIT 1
   `;
 	if (rows.length === 0) throw new Error(`No blob found for path: ${path}`);
@@ -172,8 +172,8 @@ async function processFile({ storage, sql, typesense, siteId, branch, path }) {
 		await sql`
       UPDATE \"Blob\"
       SET metadata = ${sql.json(metadata)},
-          \"syncStatus\" = 'SUCCESS',
-          \"syncError\"  = NULL
+          \"sync_status\" = 'SUCCESS',
+          \"sync_error\"  = NULL
       WHERE id = ${blobId};
     `;
 		console.log("Indexing in Typesense");
@@ -191,8 +191,8 @@ async function processFile({ storage, sql, typesense, siteId, branch, path }) {
 		console.log("Updating blob with error status");
 		await sql`
       UPDATE \"Blob\"
-      SET \"syncStatus\" = 'ERROR',
-          \"syncError\"  = ${e.message}
+      SET \"sync_status\" = 'ERROR',
+          \"sync_error\"  = ${e.message}
       WHERE id = ${blobId};
     `;
 		throw e; // Re-throw to be caught by handleMessage

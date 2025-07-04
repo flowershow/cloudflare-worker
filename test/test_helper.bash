@@ -7,8 +7,8 @@ setup_test_data() {
     # Create test site
     docker compose exec postgres psql postgresql://postgres:postgres@localhost:5432/postgres -c \
         "INSERT INTO \"Site\" (
-            id, gh_repository, gh_branch, \"projectName\", \"createdAt\", \"updatedAt\",
-            \"autoSync\", \"enableComments\", plan
+            id, gh_repository, gh_branch, \"project_name\", \"created_at\", \"updated_at\",
+            \"auto_aync\", \"enable_comments\", plan
         ) VALUES (
             '$site_id', 'test/repo', 'main', 'Test Project', NOW(), NOW(),
             false, false, 'FREE'
@@ -17,8 +17,8 @@ setup_test_data() {
     # Create blob for test file
     docker compose exec postgres psql postgresql://postgres:postgres@localhost:5432/postgres -c \
         "INSERT INTO \"Blob\" (
-            id, \"siteId\", path, \"appPath\", size, sha, metadata, extension,
-            \"syncStatus\", \"syncError\", \"createdAt\", \"updatedAt\"
+            id, \"siteId\", path, \"app_path\", size, sha, metadata, extension,
+            \"sync_status\", \"sync_error\", \"created_at\", \"updated_at\"
         ) VALUES (
             '$blob_id', '$site_id', '$path', '$4', 100, 'test-sha',
             '{}'::jsonb, 'md', 'PENDING', NULL, NOW(), NOW()

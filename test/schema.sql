@@ -6,40 +6,40 @@ CREATE TABLE "Site" (
     gh_repository TEXT NOT NULL,
     gh_branch TEXT NOT NULL,
     subdomain TEXT UNIQUE,
-    "customDomain" TEXT UNIQUE,
-    "rootDir" TEXT,
-    "projectName" TEXT NOT NULL,
-    "createdAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "userId" TEXT,
-    "autoSync" BOOLEAN NOT NULL DEFAULT false,
-    "webhookId" TEXT UNIQUE,
-    "enableComments" BOOLEAN NOT NULL DEFAULT false,
-    "giscusRepoId" TEXT,
-    "giscusCategoryId" TEXT,
+    custom_domain TEXT UNIQUE,
+    root_dir TEXT,
+    project_name TEXT NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    user_id TEXT,
+    auto_sync BOOLEAN NOT NULL DEFAULT false,
+    webhook_id TEXT UNIQUE,
+    enable_comments BOOLEAN NOT NULL DEFAULT false,
+    giscus_repo_id TEXT,
+    giscus_category_id TEXT,
     plan TEXT NOT NULL DEFAULT 'FREE',
     tree JSONB,
-    UNIQUE("userId", "projectName")
+    UNIQUE(user_id, project_name)
 );
 
-CREATE INDEX "Site_userId_idx" ON "Site"("userId");
+CREATE INDEX site_user_id_idx ON "Site"(user_id);
 
 CREATE TABLE "Blob" (
     id TEXT PRIMARY KEY,
-    "siteId" TEXT NOT NULL REFERENCES "Site"(id) ON DELETE CASCADE,
+    site_id TEXT NOT NULL REFERENCES "Site"(id) ON DELETE CASCADE,
     path TEXT NOT NULL,
-    "appPath" TEXT NOT NULL,
+    app_path TEXT NOT NULL,
     size INTEGER NOT NULL,
     sha TEXT NOT NULL,
     metadata JSONB NOT NULL DEFAULT '{}',
     extension TEXT,
-    "syncStatus" TEXT NOT NULL DEFAULT 'PENDING',
-    "syncError" TEXT,
-    "createdAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE("siteId", path),
-    UNIQUE("siteId", "appPath")
+    sync_status TEXT NOT NULL DEFAULT 'PENDING',
+    sync_error TEXT,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(site_id, path),
+    UNIQUE(site_id, app_path)
 );
 
-CREATE INDEX "Blob_siteId_idx" ON "Blob"("siteId");
-CREATE INDEX "Blob_appPath_idx" ON "Blob"("appPath");
+CREATE INDEX blob_site_id_idx ON "Blob"(site_id);
+CREATE INDEX blob_app_path_idx ON "Blob"(app_path);
