@@ -220,6 +220,12 @@ async function handleMessage({ msg, storage, sql, typesense }) {
 			return msg.ack();
 		}
 
+		// Skip files inside _flowershow/ directory
+		if (path.includes("_flowershow/")) {
+			console.log({ siteId, path }, "Skipping file inside _flowershow/ directory");
+			return msg.ack();
+		}
+
 		console.log("Processing file:", { siteId, branch, path });
 		await processFile({ storage, sql, typesense, siteId, branch, path });
 		console.log("Successfully processed file");
