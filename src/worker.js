@@ -170,9 +170,9 @@ async function processFile({ storage, sql, typesense, siteId, branch, path }) {
 		// 4) Update DB metadata (only if publish is not false)
 		console.log("Updating blob metadata:", { blobId });
 		
-		// Normalize permalink by removing leading slash if present
+		// Normalize permalink by removing leading and trailing slashes if present
 		const permalink = metadata.permalink
-			? metadata.permalink.replace(/^\/+/, '')
+			? metadata.permalink.replace(/^\/+/, '').replace(/\/+$/, '')
 			: null;
 		
 		await sql`
