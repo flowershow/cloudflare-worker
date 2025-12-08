@@ -169,13 +169,20 @@ async function processFile({ storage, sql, typesense, siteId, branch, path }) {
 
 		// 4) Update DB metadata (only if publish is not false)
 		console.log("Updating blob metadata:", { blobId });
+		
+		// Normalize permalink by removing leading slash if present
+		const permalink = metadata.permalink
+			? metadata.permalink.replace(/^\/+/, '')
+			: null;
+		
 		await sql`
-      UPDATE \"Blob\"
-      SET metadata = ${sql.json(metadata)},
-          \"sync_status\" = 'SUCCESS',
-          \"sync_error\"  = NULL
-      WHERE id = ${blobId};
-    `;
+		    UPDATE \"Blob\"
+		    SET metadata = ${sql.json(metadata)},
+		        permalink = ${permalink},
+		        \"sync_status\" = 'SUCCESS',
+		        \"sync_error\"  = NULL
+		    WHERE id = ${blobId};
+		  `;
 		console.log("Indexing in Typesense");
 		await indexInTypesense({ typesense, siteId, blobId, path, body, metadata });
 		console.log("Successfully updated blob metadata");
