@@ -8,7 +8,7 @@ A Cloudflare worker that processes markdown files when they are uploaded to stor
 - Extracts metadata from frontmatter
 - Extracts `title` and `description` if not specified in the frontmatter
 - Updates `Blob` records in the database with extracted metadata
-- Uses queues for reliable processing with batching and retries 
+- Uses queues for reliable processing with batching and retries
 - Works with Cloudflare R2 storage in production/staging
 - Supports MinIO for local development
 - Built-in observability with sampling for monitoring
@@ -21,6 +21,7 @@ A Cloudflare worker that processes markdown files when they are uploaded to stor
 
 1. Clone the repository
 2. Install dependencies:
+
 ```bash
 npm install
 ```
@@ -33,9 +34,10 @@ cp .dev.vars.example .dev.vars
 
 ### Setting up MinIO Client
 
->Note: You only need to do this once.
+> Note: You only need to do this once.
 
 1. Install the MinIO client (mc):
+
    ```bash
    # On macOS:
    brew install minio/stable/mc
@@ -49,36 +51,42 @@ cp .dev.vars.example .dev.vars
    ```
 
 2. Configure MinIO client alias:
+
 ```bash
 mc alias set local http://localhost:9000 minioadmin minioadmin
 ```
 
-3. Create the test bucket if it doesn't exist:
+3. Create a test bucket if it doesn't exist:
+
 ```bash
-mc mb local/datahub
+mc mb local/flowershow
 ```
 
 > Note: Use this bucket name in S3_BUCKET env var.
 
 4. Test the connection:
+
 ```bash
-mc ls local/datahub
+mc ls local/flowershow
 ```
 
 Important: When using MinIO client (mc), always use the configured alias (e.g., 'local') to interact with the MinIO server:
-- ❌ `mc cp test.md minio/datahub/...` - Wrong: copies to local directory
-- ✅ `mc cp test.md local/datahub/...` - Correct: uploads to MinIO server
+
+- ❌ `mc cp test.md minio/flowershow/...` - Wrong: copies to local directory
+- ✅ `mc cp test.md local/flowershow/...` - Correct: uploads to MinIO server
 
 ### Setting up MinIO Event Notifications
 
 > Note: You only need to do this once.
 
 1. Start the worker in development mode (if not already running):
+
 ```bash
 npm run dev
 ```
 
 2. Configure webhook event notifications using the MinIO Client (mc):
+
 ```bash
 # Add webhook configuration for markdown file events
 mc admin config set local notify_webhook:worker endpoint=http://localhost:8787/queue
@@ -87,10 +95,11 @@ mc admin config set local notify_webhook:worker endpoint=http://localhost:8787/q
 mc admin service restart local
 
 # Wait a few seconds for MinIO to restart, then add event configuration
-mc event add local/datahub arn:minio:sqs::worker:webhook --event put
+mc event add local/flowershow arn:minio:sqs::worker:webhook --event put
 ```
 
 This will:
+
 - Configure a webhook endpoint at http://localhost:8787/queue (your local worker's queue endpoint)
 - Set up notifications for put (creation) events
 - Send events to the worker for processing
@@ -110,12 +119,14 @@ For installation instructions, see the [Typesense Installation Guide](https://ty
 You can test the worker by uploading files.
 
 Make sure the worker is running and upload the test file:
+
 ```bash
 # Upload a markdown file
-mc cp test/test.md local/datahub/test-site/main/raw/test.md
+mc cp test/test.md local/flowershow/test-site/main/raw/test.md
 ```
 
 The worker will:
+
 1. Receive the MinIO event at /queue endpoint
 2. Queue the file for processing
 3. Process the queued event
@@ -130,6 +141,7 @@ Note: Ensure your database has a blob record for the test file path before testi
 The project includes end-to-end tests that verify the complete flow from file upload to database updates. The tests are self-sufficient and will automatically set up all required dependencies. To run the tests:
 
 1. Clone the test dependencies:
+
    ```bash
    git submodule update --init
    ```
@@ -140,6 +152,7 @@ The project includes end-to-end tests that verify the complete flow from file up
    ```
 
 The tests will:
+
 1. Start MinIO and PostgreSQL using Docker Compose
 2. Initialize the database schema
 3. Set up test data:
@@ -154,6 +167,7 @@ The tests will:
 7. Clean up all test data and stop Docker services when done
 
 Requirements:
+
 - Docker and Docker Compose
 - MinIO client (mc)
 - Node.js and npm
@@ -161,11 +175,13 @@ Requirements:
 ## File Processing
 
 The worker processes files uploaded to storage at the following path pattern:
+
 ```
 /{siteId}/{branch}/raw/{pathtofile}
 ```
 
 For example:
+
 ```
 /my-site/main/raw/blog/welcome.md
 ```
@@ -173,6 +189,7 @@ For example:
 The processing flow differs between environments:
 
 ### Production/Staging (R2)
+
 1. R2 automatically queues events when files are uploaded
 2. The worker processes the queued events:
    - Extracts file metadata
@@ -181,6 +198,7 @@ The processing flow differs between environments:
 3. If processing fails, the event is automatically retried
 
 ### Development (MinIO)
+
 1. The worker receives MinIO event notifications at /queue endpoint
 2. The worker queues the events for processing
 3. The worker processes the queued events:
@@ -194,12 +212,14 @@ The processing flow differs between environments:
 The worker uses separate queues for each environment:
 
 - Development: `markdown-processing-queue-dev`
+
   - Used when running `npm run dev`
   - Handles MinIO events via /queue endpoint
   - Isolated from production events
   - Good for testing without affecting production data
 
 - Staging: `flowershow-markdown-queue-staging`
+
   - Used for staging environment
   - Processes R2 events automatically
   - Allows testing with production-like setup
@@ -215,16 +235,19 @@ This separation ensures that development and staging testing don't interfere wit
 ## Production Deployment
 
 1. Create the production queue:
+
 ```bash
 npx wrangler queues create flowershow-markdown-queue
 ```
 
 2. Deploy the worker:
+
 ```bash
 npm run deploy
 ```
 
 3. Configure environment variables in Cloudflare dashboard (worker settings):
+
    - DATABASE_URL
    - TYPESENSE_HOST
    - TYPESENSE_PORT
@@ -248,11 +271,13 @@ npm run deploy
 The worker extracts the following metadata from markdown files:
 
 ### Title
+
 1. Uses frontmatter `title` field if present
 2. Falls back to first H1 heading in the content
 3. If no title is found, uses the filename (without extension)
 
 ### Description
+
 1. Uses frontmatter `description` field if present
 2. Falls back to extracting first 200 characters of content
 

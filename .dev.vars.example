@@ -9,7 +9,7 @@ TYPESENSE_API_KEY=xyz # With document write permissions to all collections
 # These can be removed in production/staging as we use R2 bindings there
 S3_ACCESS_KEY_ID=minioadmin
 S3_SECRET_ACCESS_KEY=minioadmin
-S3_BUCKET=datahub
+S3_BUCKET=flowershow
 S3_ENDPOINT=http://localhost:9000
 S3_FORCE_PATH_STYLE=true
 

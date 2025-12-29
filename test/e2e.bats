@@ -19,7 +19,7 @@ DATABASE_URL=postgresql://postgres:postgres@localhost:15432/postgres
 S3_ACCESS_KEY_ID=minioadmin
 S3_SECRET_ACCESS_KEY=minioadmin
 S3_REGION=us-east-1
-S3_BUCKET=datahub
+S3_BUCKET=flowershow
 S3_ENDPOINT=http://localhost:19000
 S3_FORCE_PATH_STYLE=true
 FILE_PROCESSOR_QUEUE=markdown-processing-queue-dev
@@ -52,8 +52,8 @@ EOF
     docker compose exec minio mc alias set local http://localhost:9000 minioadmin minioadmin
     
     echo "Creating bucket..."
-    if ! docker compose exec minio mc ls local/datahub &>/dev/null; then
-        docker compose exec minio mc mb local/datahub
+    if ! docker compose exec minio mc ls local/flowershow &>/dev/null; then
+        docker compose exec minio mc mb local/flowershow
     fi
 
     echo "Setting up MinIO events..."
@@ -70,9 +70,9 @@ EOF
     done
     
     echo "Adding event configuration..."
-    docker compose exec minio mc event add local/datahub arn:minio:sqs::worker:webhook --event put
+    docker compose exec minio mc event add local/flowershow arn:minio:sqs::worker:webhook --event put
  
-    if ! docker compose exec minio mc event list local/datahub | grep -q "arn:minio:sqs::worker:webhook"; then
+    if ! docker compose exec minio mc event list local/flowershow | grep -q "arn:minio:sqs::worker:webhook"; then
         echo "Failed to verify event configuration"
         exit 1
     fi
@@ -108,7 +108,7 @@ teardown() {
     echo "Testing initial upload..."
     create_test_content "Initial Article" "First version" "2024-03-20"
     docker compose cp test_content.md minio:/test_content.md
-    docker compose exec minio mc cp /test_content.md "local/datahub/$SITE_ID/$BRANCH/raw/$PATH_IN_REPO"
+    docker compose exec minio mc cp /test_content.md "local/flowershow/$SITE_ID/$BRANCH/raw/$PATH_IN_REPO"
     rm test_content.md
     
     echo "Waiting for initial processing..."
@@ -152,7 +152,7 @@ teardown() {
     # Upload updated file
     create_test_content "Updated Article" "Second version" "2024-03-21"
     docker compose cp test_content.md minio:/test_content.md
-    docker compose exec minio mc cp /test_content.md "local/datahub/$SITE_ID/$BRANCH/raw/$PATH_IN_REPO"
+    docker compose exec minio mc cp /test_content.md "local/flowershow/$SITE_ID/$BRANCH/raw/$PATH_IN_REPO"
     rm test_content.md
     
     echo "Waiting for update processing..."
