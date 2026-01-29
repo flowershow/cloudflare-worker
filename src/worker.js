@@ -98,6 +98,14 @@ async function processFile({ storage, sql, typesense, siteId, branch, path }) {
 	const blobId = await getBlobId(sql, siteId, path);
 	console.log("Found blob ID:", blobId);
 
+	// Mark as PROCESSING before we start parsing
+	await sql`
+		UPDATE "Blob"
+		SET "sync_status" = 'PROCESSING'
+		WHERE id = ${blobId};
+	`;
+	console.log("Marked blob as PROCESSING");
+
 	try {
 		const key = `${siteId}/${branch}/raw/${path}`;
 		console.log("Fetching content for key:", key);
@@ -223,7 +231,20 @@ async function handleMessage({ msg, storage, sql, typesense }) {
 			throw new Error(`Invalid siteId or branch: ${siteId}, ${branch}`);
 		}
 		if (!path.match(/\.(md|mdx)$/i)) {
-			console.log({ siteId, path }, "Skipping non-markdown file");
+			// Non-markdown files: just mark as SUCCESS (no processing needed)
+			console.log({ siteId, path }, "Non-markdown file, marking as SUCCESS");
+			try {
+				const blobId = await getBlobId(sql, siteId, path);
+				await sql`
+					UPDATE "Blob"
+					SET "sync_status" = 'SUCCESS',
+					    "sync_error" = NULL
+					WHERE id = ${blobId};
+				`;
+				console.log("Successfully marked non-markdown file as SUCCESS");
+			} catch (e) {
+				console.error("Error updating non-markdown file status:", e.message);
+			}
 			return msg.ack();
 		}
 
