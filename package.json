@@ -7,7 +7,7 @@
 		"dev": "wrangler dev --local --config wrangler.flowershow.toml --env dev",
 		"deploy:staging": "npx wrangler deploy --config wrangler.flowershow.toml --keep-vars --env staging",
 		"deploy:production": "npx wrangler deploy --config wrangler.flowershow.toml --keep-vars --env production",
-    "biome": "npx @biomejs/biome check --write src",
+		"biome": "npx @biomejs/biome check --write src",
 		"test": "bats test/e2e.bats",
 		"test:watch": "bats test/e2e.bats --watch"
 	},
@@ -18,10 +18,11 @@
 		"@biomejs/biome": "1.9.4",
 		"wrangler": "^4.1.0"
 	},
-  "type": "module",
+	"type": "module",
 	"dependencies": {
 		"@aws-sdk/client-s3": "^3.0.0",
 		"gray-matter": "^4.0.3",
+		"image-size": "^2.0.2",
 		"postgres": "^3.4.4",
 		"remark": "^15.0.1",
 		"strip-markdown": "^6.0.0",
