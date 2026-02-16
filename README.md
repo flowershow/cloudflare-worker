@@ -1,3 +1,5 @@
+> **⚠️ This repository has been archived.** Development has moved to the [flowershow monorepo](https://github.com/flowershow/flowershow) at [`packages/cloudflare-worker`](https://github.com/flowershow/flowershow/tree/main/packages/cloudflare-worker).
+
 # Markdown Processing Worker
 
 A Cloudflare worker that processes markdown files when they are uploaded to storage. The worker uses Cloudflare Queues to reliably process files and update metadata in the database.
